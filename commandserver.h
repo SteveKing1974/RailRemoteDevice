@@ -2,12 +2,31 @@
 #define COMMANDSERVER_H
 
 #include <QObject>
+#include <QHash>
+#include <QString>
 
-class CommandServer : public QTcpServer
+class QTcpServer;
+class QSignalMapper;
+
+class CommandBase;
+
+class CommandServer : public QObject
 {
+    Q_OBJECT
+
 public:
     CommandServer();
     ~CommandServer();
+
+private slots:
+    void newConnection();
+    void dataAvailable(QObject* socket);
+
+private:
+    QTcpServer* m_pServer;
+    QSignalMapper* m_pSignalMap;
+    QHash<QString, CommandBase*> m_CommandTable;
+
 };
 
 #endif // COMMANDSERVER_H
