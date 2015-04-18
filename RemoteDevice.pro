@@ -16,7 +16,8 @@ TEMPLATE = app
 
 SOURCES += main.cpp \
     remoteidentify.cpp \
-    commandserver.cpp
+    commandserver.cpp \
+    hardwarecontroller.cpp
 
 *pi*: {
     target.path = /home/pi/Rail
@@ -42,7 +43,8 @@ SOURCES += main.cpp \
 
 HEADERS += \
     remoteidentify.h \
-    commandserver.h
+    commandserver.h \
+    hardwarecontroller.h
 
 
 
