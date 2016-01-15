@@ -16,7 +16,7 @@ class CommandServer : public QObject
 
 public:
     CommandServer();
-    ~CommandServer();
+    virtual ~CommandServer();
 
 private slots:
     void newConnection();
