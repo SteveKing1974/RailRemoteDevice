@@ -1,4 +1,5 @@
 #include "commandserver.h"
+#include "hardwarecontroller.h"
 
 #include <QTcpServer>
 #include <QTcpSocket>
@@ -8,10 +9,10 @@
 #include <QJsonDocument>
 #include <QJsonArray>
 
+
 class CommandBase {
 public:
-    virtual ~CommandBase() {}
-    virtual QJsonDocument parseCommand(const QJsonDocument& cmd)
+    virtual QJsonDocument parseCommand(const QJsonDocument& cmd, const HardwareController* pControl)
     {
         QJsonDocument doc;
         QJsonObject obj;
@@ -23,40 +24,19 @@ public:
     }
 };
 
-class GetStateCommand : public CommandBase {
+class GetHardwareCommand : public CommandBase {
 public:
-    QJsonDocument parseCommand(const QJsonDocument& cmd)
+    QJsonDocument parseCommand(const QJsonDocument& cmd, const HardwareController* pControl)
     {
         QJsonDocument doc;
         QJsonObject obj;
 
-        QJsonObject points;
+        QJsonArray points;
 
-        QHash<QString, int> dummyPoints;
+        QStringList allPoints = pControl->allPoints();
 
-        dummyPoints.insert("innerStationSwitch", 1);
-        dummyPoints.insert("innerSwitchLeft", 1);
-        dummyPoints.insert("innerSwitchRight", 1);
-
-        dummyPoints.insert("leftSidingSwitch", 1);
-        dummyPoints.insert("leftSidingSwitch2", 1);
-        dummyPoints.insert("outerSwitchLeft", 1);
-        dummyPoints.insert("outerSwitchRight", 1);
-        dummyPoints.insert("rightSidingSwitch2", 1);
-        dummyPoints.insert("stationInnerLoopSwitchLeft", 1);
-        dummyPoints.insert("stationInnerLoopSwitchRight", 1);
-        dummyPoints.insert("stationOuterEntrance", 1);
-        dummyPoints.insert("stationOuterLoopSwitchLeft", 1);
-        dummyPoints.insert("stationOuterSidingPoints", 1);
-        dummyPoints.insert("stationOuterToInner", 1);
-
-
-        QHashIterator<QString, int> pIter(dummyPoints);
-        while (pIter.hasNext()) {
-            pIter.next();
-            QJsonObject nextPoint;
-            nextPoint.insert("state", pIter.value());
-            points.insert(pIter.key(), nextPoint);
+        foreach (const QString& p, allPoints) {
+            points.push_back(QJsonValue(p));
         }
 
         QHash<QString, int> dummyBreaks;
@@ -77,23 +57,19 @@ public:
         topLevel.insert("points", points);
         topLevel.insert("breaks", breaks);
 
-        obj.insert("Command", QJsonValue("GetState"));
+        obj.insert("Command", QJsonValue("GetHardware"));
         obj.insert("Data", topLevel);
         doc.setObject(obj);
 
         return doc;
     }
+
 };
 
 class SetStateCommand : public CommandBase {
 public:
-    QJsonDocument parseCommand(const QJsonDocument& cmd)
+    QJsonDocument parseCommand(const QJsonDocument& cmd, const HardwareController* pControl)
     {
-//        QJsonObject cmdObj = cmd.object();
-//        if (cmdObj.value("Command").toString()=="GetState")
-//        {
-//            emit gotState(SectionData::fromJsonDoc(cmdDoc));
-//        }
 
         QJsonDocument doc;
         QJsonObject obj;
@@ -117,7 +93,7 @@ public:
         data.push_back(QJsonValue("12;Right Siding Middle;0;0,1,2,3"));
         data.push_back(QJsonValue("13;Right Siding Bottom;0;0,1,2,3"));
 
-        obj.insert("Command", QJsonValue("GetState"));
+        obj.insert("Command", QJsonValue("SetState"));
         obj.insert("State", QJsonValue(data));
         doc.setObject(obj);
 
@@ -126,7 +102,8 @@ public:
 };
 
 
-CommandServer::CommandServer()
+CommandServer::CommandServer(HardwareController* pController) :
+    m_pController(pController)
 {
     m_pServer = new QTcpServer(this);
     m_pSignalMap = new QSignalMapper(this);
@@ -136,7 +113,7 @@ CommandServer::CommandServer()
     connect(m_pServer, SIGNAL(newConnection()), this, SLOT(newConnection()));
     connect(m_pSignalMap, SIGNAL(mapped(QObject*)), this, SLOT(dataAvailable(QObject*)));
 
-    m_CommandTable.insert("GetState", new GetStateCommand);
+    m_CommandTable.insert("GetHardware", new GetHardwareCommand);
     m_CommandTable.insert("SetState", new SetStateCommand);
 }
 
@@ -171,7 +148,7 @@ void CommandServer::dataAvailable(QObject *socket)
     QJsonDocument cmdDoc = QJsonDocument::fromBinaryData(data);
     QJsonObject cmdObj = cmdDoc.object();
 
-    QJsonDocument returnDoc = m_CommandTable.value(cmdObj.value("Command").toString())->parseCommand(cmdDoc);
+    QJsonDocument returnDoc = m_CommandTable.value(cmdObj.value("Command").toString())->parseCommand(cmdDoc, m_pController);
 
     data = returnDoc.toBinaryData();
     strm.writeBytes(data.data(), data.length());
